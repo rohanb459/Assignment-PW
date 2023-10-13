@@ -115,10 +115,11 @@ app.post('/login', express.json(), (req, res) => {
 
   });
   
+  // api to add a new record
   app.post('/add-record',auth.authenticateToken, (req, res)=>{
     const newEmployee = req.body;
-    console.log(newEmployee);
-    const { name, salary, currency, on_contract, department, sub_department } = newEmployee;
+    let { name, salary, currency, on_contract, department, sub_department } = newEmployee;
+    if(on_contract === undefined) on_contract = 'false';
 
     const insertQuery = `
     INSERT INTO employees (name, salary, currency, on_contract, department, sub_department)
@@ -136,7 +137,36 @@ app.post('/login', express.json(), (req, res) => {
       res.status(201).json({ message: 'Employee added successfully', employee: newEmployee });
     }
   );
-  
+
   });
+
+  app.delete('/delete-record', auth.authenticateToken, (req, res)=>{
+    const existingEmployee = req.body;
+    const {name, department, sub_department} = existingEmployee;
+
+    const employeeQuery = 'SELECT COUNT(*) as count FROM employees WHERE name = ? AND department = ? AND sub_department = ?';
+    
+    employeeDb.get(employeeQuery, [name, department, sub_department], (err, row)=>{
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      if (row.count > 0) {
+        // employee found
+        employeeDb.run('DELETE FROM employees WHERE name = ? AND department = ? AND sub_department = ?', [name, department, sub_department], (err) => {
+          if (err) {
+            return res.status(500).json({ error: 'Error while deleting employee' });
+          }
+          res.status(200).json({ message: 'Employee deleted successfully' });
+        });
+      }
+      else
+      {
+        res.status(400).json({error:'Employee not found'});
+      }
+    })
+  })
+
+  
   
 app.listen(port, ()=>console.log(`Listening on port ${port}`));
