@@ -9,11 +9,21 @@ const bcrypt = require('bcryptjs');
 const bcryptSalt = bcrypt.genSaltSync(10);
 const jwtSecret = process.env.JWT_SECRET;
 const usersDbSource = "usersDb.db";
+const employeesDbSource = "employees.db";
 const auth = require('./middleware');
-
+const bodyParser = require('body-parser');
+app.use(bodyParser.json());
 const port = 3004;
 
-let db = new sqlite3.Database(usersDbSource, (err)=>{
+let userDb = new sqlite3.Database(usersDbSource, (err)=>{
+    if(err)
+    {
+        console.log(err.message);
+        throw err;
+    }
+})
+
+let employeeDb = new sqlite3.Database(employeesDbSource, (err)=>{
     if(err)
     {
         console.log(err.message);
@@ -22,17 +32,17 @@ let db = new sqlite3.Database(usersDbSource, (err)=>{
 })
 
 app.get("/test", (req, res)=>{
-    res.json("test ok");
+    console.log(req);
+    res.json("ok");
 })
 
 // route for login
 app.post('/login', express.json(), (req, res) => {
     const { username, password } = req.body;
   
-    
     const userQuery = 'SELECT * FROM users WHERE username = ?';
   
-    db.get(userQuery, [username], (err, row) => {
+    userDb.get(userQuery, [username], (err, row) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
@@ -51,12 +61,18 @@ app.post('/login', express.json(), (req, res) => {
             jwtSecret,
             {},
             (err, token) => {
-              res.cookie("token", token, { sameSite: "none", secure: true })
-              .status(201)
-              .json({
-                    token
-              });
-              console.log(token);
+                if(err){
+                    return res.status(500).json({error: err.message})
+                }
+                else
+                {
+                    res.cookie("token", token, {})
+                    .status(201)
+                    .json({
+                          token
+                    });
+                    console.log(token);
+                }
             }
           );
         // res.status(200).json({ message: 'Login successful' });
@@ -76,7 +92,7 @@ app.post('/login', express.json(), (req, res) => {
     // Query the database to check if the user already exists
     const userQuery = 'SELECT COUNT(*) as count FROM users WHERE username = ?';
   
-    db.get(userQuery, [username], (err, row) => {
+    userDb.get(userQuery, [username], (err, row) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
@@ -88,7 +104,7 @@ app.post('/login', express.json(), (req, res) => {
   
       // User does not exist; insert the new user into the database
       const insertQuery = 'INSERT INTO users (username, password) VALUES (?, ?)';
-      db.run(insertQuery, [username, hashedPassword], (err) => {
+      userDb.run(insertQuery, [username, hashedPassword], (err) => {
         if (err) {
           return res.status(500).json({ error: err.message });
         }
@@ -99,5 +115,28 @@ app.post('/login', express.json(), (req, res) => {
 
   });
   
+  app.post('/add-record',auth.authenticateToken, (req, res)=>{
+    const newEmployee = req.body;
+    console.log(newEmployee);
+    const { name, salary, currency, on_contract, department, sub_department } = newEmployee;
+
+    const insertQuery = `
+    INSERT INTO employees (name, salary, currency, on_contract, department, sub_department)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `;
+    
+  employeeDb.run(
+    insertQuery,
+    [name, salary, currency, on_contract, department, sub_department],
+    (err) => {
+      if (err) {
+        console.error(err.message);
+        return res.status(500).json({ error: 'Error adding employee' });
+      }
+      res.status(201).json({ message: 'Employee added successfully', employee: newEmployee });
+    }
+  );
+  
+  });
   
 app.listen(port, ()=>console.log(`Listening on port ${port}`));
