@@ -13,8 +13,28 @@ const usersDbSource = "usersDb.db";
 const employeesDbSource = "employees.db";
 const auth = require("./middleware");
 const bodyParser = require("body-parser");
+const yup = require('yup');
 app.use(bodyParser.json());
 const port = 3004;
+
+// schema for validation
+const userSchema = yup.object({
+  
+    username: yup.string().min(1).required(),
+    password: yup.string().min(1).required()
+
+});
+
+const employeeSchema = yup.object({
+    
+  name: yup.string().min(1).required(),
+  salary: yup.number().required(),
+  currency: yup.string(),
+  department: yup.string().min(1).required(),
+  sub_department: yup.string().min(1).required(),
+  on_contract: yup.string()
+
+})
 
 let userDb = new sqlite3.Database(usersDbSource, (err) => {
   if (err) {
@@ -35,8 +55,16 @@ app.get("/test", (req, res) => {
 });
 
 // route for login
-app.post("/login", express.json(), (req, res) => {
+app.post("/login", express.json(), async (req, res) => {
   const { username, password } = req.body;
+  // validation
+  const inputData = req.body;
+  try{
+    await userSchema.validate(inputData);
+  }catch(err)
+  {
+    return res.status(400).json({error: err.message});
+  }
 
   const userQuery = "SELECT * FROM users WHERE username = ?";
 
@@ -73,8 +101,16 @@ app.post("/login", express.json(), (req, res) => {
 });
 
 // route for new user registration
-app.post("/register", express.json(), (req, res) => {
+app.post("/register", express.json(),async (req, res) => {
   const { username, password } = req.body;
+  const inputData = req.body;
+  // validation
+  try{
+    await userSchema.validate(inputData);
+  }catch(err)
+  {
+    return res.status(400).json({error: err.message});
+  }
 
   const hashedPassword = bcrypt.hashSync(password, bcryptSalt);
 
@@ -104,11 +140,19 @@ app.post("/register", express.json(), (req, res) => {
 });
 
 // api to add a new record
-app.post("/add-record", auth.authenticateToken, (req, res) => {
+app.post("/add-record", auth.authenticateToken,async (req, res) => {
+  const inputData = req.body;
+    try{
+        await employeeSchema.validate(inputData);
+    }catch(err)
+    {
+        return res.status(400).json({error: err.message});
+    }
   const newEmployee = req.body;
   let { name, salary, currency, on_contract, department, sub_department } =
     newEmployee;
   if (on_contract === undefined) on_contract = "false";
+  if(currency === undefined) currency = "INR"
 
   const insertQuery = `
     INSERT INTO employees (name, salary, currency, on_contract, department, sub_department)
@@ -414,5 +458,7 @@ app.get(
     }
   }
 );
-
+app.use((req, res) => {
+  res.status(404).send('Page Not Found');
+});
 app.listen(port, () => console.log(`Listening on port ${port}`));

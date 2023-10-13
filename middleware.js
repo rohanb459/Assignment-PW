@@ -1,9 +1,12 @@
 const jwt = require('jsonwebtoken');
+const yup = require('yup');
 const jwtSecret = process.env.JWT_SECRET;
 
-function authenticateToken (req, res, next){
+
+
+async function authenticateToken (req, res, next){
     const cookies = req.headers.cookie;
-  
+    
     if(cookies)
     {
         
